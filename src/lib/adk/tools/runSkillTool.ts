@@ -1,6 +1,6 @@
 import { FunctionTool } from "@google/adk";
 import { z } from "zod";
-import { runSkillWithSDK } from "../../skills/sdk-runner";
+import { runSkill } from "../../skills/runner";
 
 export function createRunSkillTool(skillsDir: string, skillsSummary: string) {
   return new FunctionTool({
@@ -20,7 +20,7 @@ export function createRunSkillTool(skillsDir: string, skillsSummary: string) {
     execute: async ({ skillId, userInput }: { skillId: string; userInput: string }) => {
       console.log(`[ADK] 🎯 run_skill called → skillId="${skillId}" input="${userInput.slice(0, 80)}${userInput.length > 80 ? "..." : ""}"`);
       try {
-        const result = await runSkillWithSDK({
+        const result = await runSkill({
           skillsDir,
           skillId,
           userInput,

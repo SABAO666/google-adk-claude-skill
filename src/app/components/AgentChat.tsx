@@ -38,35 +38,37 @@ export type AgentChatHandle = {
 function SkillBadge({
   label,
   onClick,
-  clickable = false
+  clickable = false,
+  active = false,
 }: {
   label: string;
   onClick?: () => void;
   clickable?: boolean;
+  active?: boolean;
 }) {
   return (
     <span
       onClick={clickable ? onClick : undefined}
       style={{
         display: "inline-block",
-        padding: "6px 12px",
-        fontSize: 14,
+        padding: "3px 8px",
+        fontSize: 12,
         fontWeight: 500,
-        color: "var(--accent)",
-        background: "var(--accent-light)",
+        color: active ? "white" : "var(--accent)",
+        background: active ? "var(--accent)" : "var(--accent-light)",
         border: "1px solid var(--accent)",
         borderRadius: 4,
         cursor: clickable ? "pointer" : "default",
         transition: clickable ? "all 0.15s ease" : "none",
       }}
       onMouseEnter={(e) => {
-        if (clickable) {
+        if (clickable && !active) {
           e.currentTarget.style.background = "var(--accent)";
           e.currentTarget.style.color = "white";
         }
       }}
       onMouseLeave={(e) => {
-        if (clickable) {
+        if (clickable && !active) {
           e.currentTarget.style.background = "var(--accent-light)";
           e.currentTarget.style.color = "var(--accent)";
         }
@@ -877,16 +879,16 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
             </div>
 
             {skills.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: 560 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", maxWidth: 560 }}>
                 {skills.map((skill) => (
                   <span
                     key={skill.id}
-                    title={`${skill.description}\n\nクリックして使用する`}
+                    title={`${skill.description}\n\nクリックで選択`}
                     onClick={() => handleSkillClick(skill.id, skill.name)}
                     style={{
                       display: "inline-block",
-                      padding: "8px 16px",
-                      fontSize: 14,
+                      padding: "4px 10px",
+                      fontSize: 12,
                       fontWeight: 500,
                       color: "var(--text-secondary)",
                       background: "var(--bg-secondary)",
@@ -909,11 +911,6 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
                     {skill.name}
                   </span>
                 ))}
-                {skills.length === 0 && (
-                  <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                    Skillを読み込み中...
-                  </p>
-                )}
               </div>
             )}
           </div>
@@ -1047,7 +1044,7 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
         {messages.length > 0 && skills.length > 0 && (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 8 }}>
-              利用可能なSkill (クリックで使用):
+              Skill (クリックで選択):
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {skills.map((s) => (
@@ -1070,8 +1067,8 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
               gap: 8,
             }}
           >
-            <SkillBadge label={activeSkillName} />
-            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            <SkillBadge label={activeSkillName} active={true} />
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
               のプロンプトを適用中
             </span>
             <button
