@@ -32,7 +32,7 @@ export default function Home() {
   };
 
   const handleGlobalKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && e.shiftKey) {
       e.preventDefault();
       handleGlobalSubmit(e as unknown as React.FormEvent);
     }

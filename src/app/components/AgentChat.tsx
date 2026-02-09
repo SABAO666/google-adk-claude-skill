@@ -514,11 +514,12 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
   const [usedSkills, setUsedSkills] = useState<string[]>([]);
   const [currentSkill, setCurrentSkill] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>(config.defaultModel);
+  const [activeSkillPrompt, setActiveSkillPrompt] = useState<string | null>(null);
+  const [activeSkillName, setActiveSkillName] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const fetchSkills = useCallback(async () => {
-    if (mode !== "skill") return;
     try {
       const res = await fetch("/api/skills");
       const data = await res.json();
@@ -526,23 +527,42 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
     } catch {
       // Silent fail
     }
-  }, [mode]);
+  }, []);
 
-  const handleSkillClick = useCallback((skillId: string, skillName: string) => {
+  const handleSkillClick = useCallback(async (skillId: string, skillName: string) => {
     if (loading) return;
 
-    // プロンプトを自動入力してSkillを実行
-    const prompt = `${skillName}Skillを使って、`;
-    setInput(prompt);
-    inputRef.current?.focus();
-
-    // カーソルを末尾に移動
-    setTimeout(() => {
-      if (inputRef.current) {
-        inputRef.current.setSelectionRange(prompt.length, prompt.length);
+    if (mode === "skill") {
+      // Existing behavior: auto-fill prompt for ADK routing
+      const prompt = `${skillName}Skillを使って、`;
+      setInput(prompt);
+      inputRef.current?.focus();
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.setSelectionRange(prompt.length, prompt.length);
+        }
+      }, 0);
+    } else {
+      // For plain/gemini: load full skill prompt and embed in message
+      if (activeSkillName === skillName) {
+        // Toggle off if same skill clicked again
+        setActiveSkillPrompt(null);
+        setActiveSkillName(null);
+        return;
       }
-    }, 0);
-  }, [loading]);
+      try {
+        const res = await fetch(`/api/skills/${skillId}`);
+        const data = await res.json();
+        if (data.prompt) {
+          setActiveSkillPrompt(data.prompt);
+          setActiveSkillName(data.name);
+          inputRef.current?.focus();
+        }
+      } catch {
+        // Silent fail
+      }
+    }
+  }, [loading, mode, activeSkillName]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -555,17 +575,33 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
   const sendMessage = useCallback(async (userMessage: string) => {
     if (!userMessage.trim() || loading) return;
 
+    // Capture skill state before clearing
+    const skillPrompt = activeSkillPrompt;
+    const skillName = activeSkillName;
+
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setLoading(true);
     setStreamingText("");
     setUsedSkills([]);
     setCurrentSkill(null);
 
+    // Clear active skill after capturing
+    if (skillPrompt) {
+      setActiveSkillPrompt(null);
+      setActiveSkillName(null);
+    }
+
+    // Build the actual message to send
+    // For plain/gemini with active skill: embed skill prompt in message (same pattern as runner.ts)
+    const apiMessage = (mode !== "skill" && skillPrompt)
+      ? `# Skill Instructions\n${skillPrompt}\n\n# User Input\n${userMessage}`
+      : userMessage;
+
     try {
       const res = await fetch(config.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage, model: selectedModel }),
+        body: JSON.stringify({ message: apiMessage, model: selectedModel }),
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -611,6 +647,13 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
         }
       }
 
+      // Track skill usage for plain/gemini modes
+      if (skillName) {
+        setUsedSkills((prev) =>
+          prev.includes(skillName) ? prev : [...prev, skillName]
+        );
+      }
+
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: accumulated },
@@ -629,7 +672,7 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
       setLoading(false);
       inputRef.current?.focus();
     }
-  }, [loading, config.endpoint, selectedModel]);
+  }, [loading, config.endpoint, selectedModel, mode, activeSkillPrompt, activeSkillName]);
 
   // Expose sendMessage via ref
   useImperativeHandle(ref, () => ({
@@ -646,7 +689,7 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && e.shiftKey) {
       e.preventDefault();
       handleSubmit(e as unknown as React.FormEvent);
     }
@@ -833,7 +876,7 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
               </p>
             </div>
 
-            {mode === "skill" && (
+            {skills.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center", maxWidth: 560 }}>
                 {skills.map((skill) => (
                   <span
@@ -975,7 +1018,7 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
             </span>
           </div>
         )}
-        {mode === "skill" && usedSkills.length > 0 && !loading && (
+        {usedSkills.length > 0 && !loading && (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 8 }}>
               使用したSkill:
@@ -1001,7 +1044,7 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
             </div>
           </div>
         )}
-        {mode === "skill" && messages.length > 0 && skills.length > 0 && (
+        {messages.length > 0 && skills.length > 0 && (
           <div style={{ marginBottom: 12 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 8 }}>
               利用可能なSkill (クリックで使用):
@@ -1016,6 +1059,38 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
                 />
               ))}
             </div>
+          </div>
+        )}
+        {mode !== "skill" && activeSkillName && (
+          <div
+            style={{
+              marginBottom: 8,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}
+          >
+            <SkillBadge label={activeSkillName} />
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              のプロンプトを適用中
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSkillPrompt(null);
+                setActiveSkillName(null);
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--text-muted)",
+                fontSize: 14,
+                padding: "2px 6px",
+              }}
+            >
+              ✕
+            </button>
           </div>
         )}
         <form onSubmit={handleSubmit}>
