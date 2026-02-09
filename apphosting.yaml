@@ -1,0 +1,18 @@
+runConfig:
+  minInstances: 0
+  maxInstances: 10
+  concurrency: 5
+  cpu: 2
+  memoryMiB: 2048
+
+env:
+  - variable: SKILLS_DIR
+    value: skills
+  - variable: APP_ENV
+    value: prod
+  - variable: LOG_LEVEL
+    value: info
+  - variable: ANTHROPIC_API_KEY
+    secret: ANTHROPIC_API_KEY
+  - variable: GOOGLE_API_KEY
+    secret: GOOGLE_API_KEY
