@@ -16,3 +16,5 @@ env:
     secret: ANTHROPIC_API_KEY
   - variable: GOOGLE_API_KEY
     secret: GOOGLE_API_KEY
+  - variable: GOOGLE_GENAI_API_KEY
+    secret: GOOGLE_API_KEY
