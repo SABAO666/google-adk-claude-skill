@@ -124,6 +124,22 @@ export default function Home() {
               </button>
             </div>
           </div>
+          {/* Legend */}
+          <div style={{
+            padding: "6px 10px",
+            borderBottom: "1px solid var(--border)",
+            fontFamily: "monospace",
+            fontSize: 10,
+            lineHeight: 1.7,
+          }}>
+            <div style={{ color: "#b8860b" }}>Sending: 送信開始</div>
+            <div style={{ color: "#2e8b57" }}>Skill fired: ADKがskill実行</div>
+            <div style={{ color: "#3a7bd5" }}>Done: 応答完了</div>
+            <div style={{ color: "#d9534f" }}>Error: エラー発生</div>
+            <div style={{ color: "var(--text-muted)" }}>※ skill=none → ADK自動判定</div>
+            <div style={{ color: "var(--text-muted)" }}>※ plain/gemini → skill= で確認</div>
+          </div>
+          {/* Log entries */}
           <div style={{
             flex: 1,
             overflowY: "auto",
@@ -134,17 +150,7 @@ export default function Home() {
             color: "var(--text-secondary)",
           }}>
             {logs.length === 0 && (
-              <div style={{ color: "var(--text-muted)", fontStyle: "italic", fontSize: 10, lineHeight: 1.8 }}>
-                <div>Waiting for events...</div>
-                <div style={{ marginTop: 8, borderTop: "1px solid var(--border)", paddingTop: 8 }}>
-                  <div style={{ color: "#b8860b" }}>Sending: 送信開始</div>
-                  <div style={{ color: "#2e8b57" }}>Skill fired: ADKがskill実行</div>
-                  <div style={{ color: "#3a7bd5" }}>Done: 応答完了</div>
-                  <div style={{ color: "#d9534f" }}>Error: エラー発生</div>
-                  <div style={{ marginTop: 4, color: "var(--text-muted)" }}>※ skill=none は ADK側で自動判定</div>
-                  <div style={{ color: "var(--text-muted)" }}>※ plain/gemini は skill= で確認</div>
-                </div>
-              </div>
+              <div style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Waiting for events...</div>
             )}
             {logs.map((entry, i) => (
               <div key={i} style={{
