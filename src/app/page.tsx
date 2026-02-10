@@ -79,24 +79,24 @@ export default function Home() {
           <AgentChat ref={skillRef} mode="skill" showSystemInstruction={showSystemInstruction} onToggleSystemInstruction={() => setShowSystemInstruction(!showSystemInstruction)} showSkills={showSkills} onToggleSkills={() => setShowSkills(!showSkills)} onLog={addLog} />
         </div>
         {/* Log monitor column */}
-        <div style={{ width: 280, minWidth: 280, background: "#1e1e1e", display: "flex", flexDirection: "column" }}>
+        <div style={{ width: 280, minWidth: 280, background: "var(--bg-chat, #f0f0f0)", display: "flex", flexDirection: "column" }}>
           <div style={{
             padding: "12px 12px 8px",
-            borderBottom: "1px solid #333",
+            borderBottom: "1px solid var(--border)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
           }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#ccc" }}>Log</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>Log</span>
             <button
               type="button"
               onClick={() => setLogs([])}
               style={{
                 padding: "2px 8px",
                 fontSize: 11,
-                color: "#888",
+                color: "var(--text-muted)",
                 background: "transparent",
-                border: "1px solid #444",
+                border: "1px solid var(--border)",
                 borderRadius: 4,
                 cursor: "pointer",
               }}
@@ -111,21 +111,21 @@ export default function Home() {
             fontFamily: "monospace",
             fontSize: 11,
             lineHeight: 1.6,
-            color: "#aaa",
+            color: "var(--text-secondary)",
           }}>
             {logs.length === 0 && (
-              <div style={{ color: "#555", fontStyle: "italic" }}>Waiting for events...</div>
+              <div style={{ color: "var(--text-muted)", fontStyle: "italic" }}>Waiting for events...</div>
             )}
             {logs.map((entry, i) => (
               <div key={i} style={{
-                borderBottom: "1px solid #2a2a2a",
+                borderBottom: "1px solid var(--border)",
                 paddingBottom: 3,
                 marginBottom: 3,
-                color: entry.includes("Error") ? "#ff6b6b"
-                  : entry.includes("Skill fired") ? "#69db7c"
-                  : entry.includes("Done") ? "#74c0fc"
-                  : entry.includes("Sending") ? "#ffd43b"
-                  : "#aaa",
+                color: entry.includes("Error") ? "#d9534f"
+                  : entry.includes("Skill fired") ? "#2e8b57"
+                  : entry.includes("Done") ? "#3a7bd5"
+                  : entry.includes("Sending") ? "#b8860b"
+                  : "var(--text-secondary)",
               }}>
                 {entry}
               </div>
