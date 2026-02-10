@@ -81,28 +81,48 @@ export default function Home() {
         {/* Log monitor column */}
         <div style={{ width: 280, minWidth: 280, background: "var(--bg-chat, #f0f0f0)", display: "flex", flexDirection: "column" }}>
           <div style={{
-            padding: "12px 12px 8px",
+            padding: "12px 12px",
             borderBottom: "1px solid var(--border)",
+            background: "var(--bg-secondary)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            minHeight: 52,
           }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>Log</span>
-            <button
-              type="button"
-              onClick={() => setLogs([])}
-              style={{
-                padding: "2px 8px",
-                fontSize: 11,
-                color: "var(--text-muted)",
-                background: "transparent",
-                border: "1px solid var(--border)",
-                borderRadius: 4,
-                cursor: "pointer",
-              }}
-            >
-              Clear
-            </button>
+            <span style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)" }}>Log</span>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              <button
+                type="button"
+                onClick={() => setShowSystemInstruction(!showSystemInstruction)}
+                className="toolbar-btn"
+                title="System Instruction"
+                style={{
+                  width: 28,
+                  height: 28,
+                  color: showSystemInstruction ? "var(--accent)" : undefined,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogs([])}
+                style={{
+                  padding: "2px 8px",
+                  fontSize: 11,
+                  color: "var(--text-muted)",
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                  borderRadius: 4,
+                  cursor: "pointer",
+                }}
+              >
+                Clear
+              </button>
+            </div>
           </div>
           <div style={{
             flex: 1,
