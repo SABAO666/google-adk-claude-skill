@@ -1,27 +1,53 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useRef, useState, useCallback, useEffect } from "react";
 import AgentChat, { type AgentChatHandle } from "./components/AgentChat";
 
 export default function Home() {
   const [globalInput, setGlobalInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [showSystemInstruction, setShowSystemInstruction] = useState(false);
+  const [showSkills, setShowSkills] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
 
   const geminiRef = useRef<AgentChatHandle>(null);
   const plainRef = useRef<AgentChatHandle>(null);
   const skillRef = useRef<AgentChatHandle>(null);
   const globalInputRef = useRef<HTMLTextAreaElement>(null);
+  const logEndRef = useRef<HTMLDivElement>(null);
 
-  const handleGlobalSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const addLog = useCallback((entry: string) => {
+    const ts = new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    setLogs((prev) => [...prev, `${ts} ${entry}`]);
+  }, []);
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs]);
+
+  // Apply: insert text into all 3 inputs without sending
+  const handleApplyToInputs = useCallback(() => {
+    if (!globalInput.trim()) return;
+    const text = globalInput.trim();
+    geminiRef.current?.setInput(text);
+    plainRef.current?.setInput(text);
+    skillRef.current?.setInput(text);
+    setGlobalInput("");
+    const msg = `[Global] Applied to all inputs: ${text.slice(0, 60)}`;
+    console.log(msg);
+    addLog(msg);
+  }, [globalInput, addLog]);
+
+  // Broadcast: send to all 3 agents
+  const handleBroadcastSend = useCallback(async () => {
     if (!globalInput.trim() || isSending) return;
-
     const message = globalInput.trim();
     setGlobalInput("");
     setIsSending(true);
+    const bMsg = `[Global] Broadcasting: ${message.slice(0, 60)}`;
+    console.log(bMsg);
+    addLog(bMsg);
 
-    // 3つ全てに同時送信
     await Promise.all([
       geminiRef.current?.sendMessage(message),
       plainRef.current?.sendMessage(message),
@@ -29,170 +55,157 @@ export default function Home() {
     ]);
 
     setIsSending(false);
-  };
+  }, [globalInput, isSending, addLog]);
 
   const handleGlobalKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && e.shiftKey) {
       e.preventDefault();
-      handleGlobalSubmit(e as unknown as React.FormEvent);
+      handleBroadcastSend();
     }
-  }, [globalInput, isSending]);
+  }, [handleBroadcastSend]);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100vh",
-        background: "var(--border)",
-      }}
-    >
-      {/* 3カラムレイアウト */}
-      <div
-        style={{
-          display: "flex",
-          flex: 1,
-          gap: 1,
-          minHeight: 0,
-        }}
-      >
-        {/* Left: Gemini Direct (no skills) */}
-        <div style={{ flex: 1, minWidth: 0, background: "var(--bg-primary)" }}>
-          <AgentChat
-            ref={geminiRef}
-            mode="gemini"
-            showSystemInstruction={showSystemInstruction}
-            onToggleSystemInstruction={() => setShowSystemInstruction(!showSystemInstruction)}
-          />
-        </div>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "var(--border)" }}>
 
-        {/* Center: Plain Claude (no skills) */}
+      {/* 3-column chat + log column */}
+      <div style={{ display: "flex", flex: 1, gap: 1, minHeight: 0 }}>
         <div style={{ flex: 1, minWidth: 0, background: "var(--bg-primary)" }}>
-          <AgentChat
-            ref={plainRef}
-            mode="plain"
-            showSystemInstruction={showSystemInstruction}
-            onToggleSystemInstruction={() => setShowSystemInstruction(!showSystemInstruction)}
-          />
+          <AgentChat ref={geminiRef} mode="gemini" showSystemInstruction={showSystemInstruction} onToggleSystemInstruction={() => setShowSystemInstruction(!showSystemInstruction)} showSkills={showSkills} onToggleSkills={() => setShowSkills(!showSkills)} onLog={addLog} />
         </div>
-
-        {/* Right: Skill Agent (ADK + skills) */}
         <div style={{ flex: 1, minWidth: 0, background: "var(--bg-primary)" }}>
-          <AgentChat
-            ref={skillRef}
-            mode="skill"
-            showSystemInstruction={showSystemInstruction}
-            onToggleSystemInstruction={() => setShowSystemInstruction(!showSystemInstruction)}
-          />
+          <AgentChat ref={plainRef} mode="plain" showSystemInstruction={showSystemInstruction} onToggleSystemInstruction={() => setShowSystemInstruction(!showSystemInstruction)} showSkills={showSkills} onToggleSkills={() => setShowSkills(!showSkills)} onLog={addLog} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0, background: "var(--bg-primary)" }}>
+          <AgentChat ref={skillRef} mode="skill" showSystemInstruction={showSystemInstruction} onToggleSystemInstruction={() => setShowSystemInstruction(!showSystemInstruction)} showSkills={showSkills} onToggleSkills={() => setShowSkills(!showSkills)} onLog={addLog} />
+        </div>
+        {/* Log monitor column */}
+        <div style={{ width: 280, minWidth: 280, background: "#1e1e1e", display: "flex", flexDirection: "column" }}>
+          <div style={{
+            padding: "12px 12px 8px",
+            borderBottom: "1px solid #333",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#ccc" }}>Log</span>
+            <button
+              type="button"
+              onClick={() => setLogs([])}
+              style={{
+                padding: "2px 8px",
+                fontSize: 11,
+                color: "#888",
+                background: "transparent",
+                border: "1px solid #444",
+                borderRadius: 4,
+                cursor: "pointer",
+              }}
+            >
+              Clear
+            </button>
+          </div>
+          <div style={{
+            flex: 1,
+            overflowY: "auto",
+            padding: "8px 10px",
+            fontFamily: "monospace",
+            fontSize: 11,
+            lineHeight: 1.6,
+            color: "#aaa",
+          }}>
+            {logs.length === 0 && (
+              <div style={{ color: "#555", fontStyle: "italic" }}>Waiting for events...</div>
+            )}
+            {logs.map((entry, i) => (
+              <div key={i} style={{
+                borderBottom: "1px solid #2a2a2a",
+                paddingBottom: 3,
+                marginBottom: 3,
+                color: entry.includes("Error") ? "#ff6b6b"
+                  : entry.includes("Skill fired") ? "#69db7c"
+                  : entry.includes("Done") ? "#74c0fc"
+                  : entry.includes("Sending") ? "#ffd43b"
+                  : "#aaa",
+              }}>
+                {entry}
+              </div>
+            ))}
+            <div ref={logEndRef} />
+          </div>
         </div>
       </div>
 
-      {/* Floating global input */}
-      <div
-        style={{
-          position: "sticky",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          padding: "16px 32px 20px",
-          background: "var(--bg-primary)",
-          borderTop: "1px solid var(--border)",
-          boxShadow: "0 -2px 12px rgba(0, 0, 0, 0.06)",
-          zIndex: 50,
-        }}
-      >
-        <div style={{ maxWidth: 1400, margin: "0 auto" }}>
-          <div className="global-input-card">
-            {/* Card header */}
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "10px 16px",
-              borderBottom: "1px solid var(--border)",
-            }}>
-              <span style={{
-                fontSize: 13,
-                fontWeight: 600,
+      {/* Global input — above individual inputs, spanning full width */}
+      <div style={{
+        padding: "8px 16px",
+        background: "var(--bg-primary)",
+        borderTop: "1px solid var(--border)",
+      }}>
+        <div className="global-input-card" style={{ maxWidth: 1400, margin: "0 auto" }}>
+          <div style={{ padding: "8px 14px 6px" }}>
+            <textarea
+              ref={globalInputRef}
+              className="chat-textarea"
+              value={globalInput}
+              onChange={(e) => setGlobalInput(e.target.value)}
+              onKeyDown={handleGlobalKeyDown}
+              placeholder="3つ全てに送るメッセージを入力... (Shift+Enter で各Skill適用＆一斉送信)"
+              disabled={isSending}
+              rows={1}
+              style={{
+                width: "100%",
+                padding: "4px 0",
+                fontSize: 14,
+                lineHeight: 1.5,
                 color: "var(--text-primary)",
-              }}>
-                Send to All Agents
-              </span>
-            </div>
-
-            {/* Card body */}
-            <div style={{ padding: "12px 16px 8px" }}>
-              <form onSubmit={handleGlobalSubmit}>
-                <textarea
-                  ref={globalInputRef}
-                  className="chat-textarea"
-                  value={globalInput}
-                  onChange={(e) => setGlobalInput(e.target.value)}
-                  onKeyDown={handleGlobalKeyDown}
-                  placeholder="3つ全てに送信するメッセージを入力..."
-                  disabled={isSending}
-                  rows={2}
-                  style={{
-                    width: "100%",
-                    padding: "4px 0",
-                    fontSize: 15,
-                    lineHeight: 1.6,
-                    color: "var(--text-primary)",
-                    background: "transparent",
-                    border: "none",
-                    outline: "none",
-                    fontFamily: "inherit",
-                    resize: "none",
-                    minHeight: 48,
-                    maxHeight: 120,
-                  }}
-                />
-
-                {/* Toolbar */}
-                <div style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  paddingTop: 8,
-                  paddingBottom: 4,
-                }}>
-                  <div style={{ display: "flex", gap: 2 }}>
-                    <button type="button" className="toolbar-btn" title="画像を添付" disabled>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-                      </svg>
-                    </button>
-                    <button type="button" className="toolbar-btn" title="ファイルを添付" disabled>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" />
-                      </svg>
-                    </button>
-                    <button type="button" className="toolbar-btn" title="絵文字" disabled>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M15.182 15.182a4.5 4.5 0 0 1-6.364 0M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0ZM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75Zm-.375 0h.008v.015h-.008V9.75Z" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="send-btn"
-                    disabled={isSending || !globalInput.trim()}
-                    title={isSending ? "送信中..." : "一括送信"}
-                    style={{ width: 40, height: 40 }}
-                  >
-                    {isSending ? (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
-                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                      </svg>
-                    ) : (
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              </form>
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                fontFamily: "inherit",
+                resize: "none",
+                minHeight: 28,
+                maxHeight: 80,
+              }}
+            />
+            {/* Toolbar */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, paddingTop: 4, paddingBottom: 2 }}>
+              <button
+                type="button"
+                onClick={handleApplyToInputs}
+                disabled={!globalInput.trim()}
+                style={{
+                  padding: "4px 12px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: !globalInput.trim() ? "var(--text-muted)" : "var(--text-secondary)",
+                  background: "var(--bg-chat, #f5f5f5)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 6,
+                  cursor: !globalInput.trim() ? "not-allowed" : "pointer",
+                  opacity: !globalInput.trim() ? 0.5 : 1,
+                }}
+              >
+                入力欄に適用
+              </button>
+              <button
+                type="button"
+                onClick={handleBroadcastSend}
+                disabled={isSending || !globalInput.trim()}
+                style={{
+                  padding: "4px 12px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: (isSending || !globalInput.trim()) ? "var(--text-muted)" : "white",
+                  background: (isSending || !globalInput.trim()) ? "var(--bg-chat, #f5f5f5)" : "var(--accent)",
+                  border: "1px solid",
+                  borderColor: (isSending || !globalInput.trim()) ? "var(--border)" : "var(--accent)",
+                  borderRadius: 6,
+                  cursor: (isSending || !globalInput.trim()) ? "not-allowed" : "pointer",
+                  opacity: (isSending || !globalInput.trim()) ? 0.5 : 1,
+                }}
+              >
+                {isSending ? "送信中..." : "一斉送信"}
+              </button>
             </div>
           </div>
         </div>

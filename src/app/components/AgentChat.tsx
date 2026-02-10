@@ -504,10 +504,11 @@ interface AgentChatProps {
   onToggleSystemInstruction?: () => void;
   showSkills?: boolean;
   onToggleSkills?: () => void;
+  onLog?: (entry: string) => void;
 }
 
 const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
-  ({ mode = "skill", showSystemInstruction = false, onToggleSystemInstruction, showSkills = false, onToggleSkills }, ref) => {
+  ({ mode = "skill", showSystemInstruction = false, onToggleSystemInstruction, showSkills = false, onToggleSkills, onLog }, ref) => {
     const config = MODE_CONFIG[mode];
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -521,18 +522,8 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
   const [selectedModel, setSelectedModel] = useState<string>(config.defaultModel);
   const [activeSkillPrompt, setActiveSkillPrompt] = useState<string | null>(null);
   const [activeSkillName, setActiveSkillName] = useState<string | null>(null);
-  const [headerStatus, setHeaderStatus] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showStatus = useCallback((text: string, duration = 5000) => {
-    setHeaderStatus(text);
-    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
-    if (duration > 0) {
-      statusTimerRef.current = setTimeout(() => setHeaderStatus(null), duration);
-    }
-  }, []);
 
   const fetchSkills = useCallback(async () => {
     try {
@@ -598,8 +589,9 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
     // Capture skill state before clearing
     const skillPrompt = activeSkillPrompt;
     const skillName = activeSkillName;
-    console.log(`[${mode}] Sending: ${userMessage.slice(0, 60)}... skill=${skillName || "none"}`);
-    showStatus(skillName ? `${skillName} で送信中...` : "送信中...", 0);
+    const logMsg = `[${mode}] Sending: ${userMessage.slice(0, 60)}... skill=${skillName || "none"}`;
+    console.log(logMsg);
+    onLog?.(logMsg);
 
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setLoading(true);
@@ -645,8 +637,9 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
               accumulated += event.text;
               setStreamingText(accumulated);
             } else if (event.type === "skill_used") {
-              console.log(`[${mode}] Skill fired: ${event.skillName}`);
-              showStatus(`${event.skillName} 実行中...`, 0);
+              const skillLog = `[${mode}] Skill fired: ${event.skillName}`;
+              console.log(skillLog);
+              onLog?.(skillLog);
               setCurrentSkill(event.skillName);
               setUsedSkills((prev) => {
                 if (!prev.includes(event.skillName)) {
@@ -655,8 +648,9 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
                 return prev;
               });
             } else if (event.type === "error") {
-              console.log(`[${mode}] Error: ${event.message}`);
-              showStatus(`Error: ${event.message}`, 8000);
+              const errLog = `[${mode}] Error: ${event.message}`;
+              console.log(errLog);
+              onLog?.(errLog);
               accumulated += `\n\nError: ${event.message}`;
               setStreamingText(accumulated);
             }
@@ -666,11 +660,12 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
         }
       }
 
-      console.log(`[${mode}] Response done, ${accumulated.length} chars`);
       const charCount = accumulated.length >= 1000
         ? `${(accumulated.length / 1000).toFixed(1)}k`
         : `${accumulated.length}`;
-      showStatus(`完了 ${charCount}文字`, 5000);
+      const doneLog = `[${mode}] Done: ${charCount} chars`;
+      console.log(doneLog);
+      onLog?.(doneLog);
 
       // Track skill usage for plain/gemini modes
       if (skillName) {
@@ -697,7 +692,7 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
       setLoading(false);
       inputRef.current?.focus();
     }
-  }, [loading, config.endpoint, selectedModel, mode, activeSkillPrompt, activeSkillName, showStatus]);
+  }, [loading, config.endpoint, selectedModel, mode, activeSkillPrompt, activeSkillName, onLog]);
 
   // Expose sendMessage and setInput via ref
   useImperativeHandle(ref, () => ({
@@ -797,20 +792,6 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
           </button>
         </div>
       </header>
-
-      {/* Status bar */}
-      {headerStatus && (
-        <div style={{
-          padding: "4px 20px",
-          background: "#fffbe6",
-          borderBottom: "1px solid #f0e68c",
-          fontSize: 13,
-          fontWeight: 500,
-          color: "#8b6914",
-        }}>
-          {headerStatus}
-        </div>
-      )}
 
       {/* System Instruction (collapsible) */}
       {showSystemInstruction && (
