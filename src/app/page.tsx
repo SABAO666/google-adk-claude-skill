@@ -33,7 +33,7 @@ export default function Home() {
     plainRef.current?.setInput(text);
     skillRef.current?.setInput(text);
     setGlobalInput("");
-    const msg = `[Global] Applied to all inputs: ${text.slice(0, 60)}`;
+    const msg = `[Global] Applied to all inputs: ${text}`;
     console.log(msg);
     addLog(msg);
   }, [globalInput, addLog]);
@@ -44,7 +44,7 @@ export default function Home() {
     const message = globalInput.trim();
     setGlobalInput("");
     setIsSending(true);
-    const bMsg = `[Global] Broadcasting: ${message.slice(0, 60)}`;
+    const bMsg = `[Global] Broadcasting: ${message}`;
     console.log(bMsg);
     addLog(bMsg);
 

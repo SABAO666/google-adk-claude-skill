@@ -589,7 +589,7 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
     // Capture skill state before clearing
     const skillPrompt = activeSkillPrompt;
     const skillName = activeSkillName;
-    const logMsg = `[${mode}] Sending: ${userMessage.slice(0, 60)}... skill=${skillName || "none"}`;
+    const logMsg = `[${mode}] Sending: ${userMessage} | skill=${skillName || "none"}`;
     console.log(logMsg);
     onLog?.(logMsg);
 
