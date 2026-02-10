@@ -33,6 +33,7 @@ export type ChatMode = "skill" | "plain" | "gemini";
 
 export type AgentChatHandle = {
   sendMessage: (message: string) => Promise<void>;
+  setInput: (text: string) => void;
 };
 
 function SkillBadge({
@@ -501,10 +502,12 @@ interface AgentChatProps {
   mode?: ChatMode;
   showSystemInstruction?: boolean;
   onToggleSystemInstruction?: () => void;
+  showSkills?: boolean;
+  onToggleSkills?: () => void;
 }
 
 const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
-  ({ mode = "skill", showSystemInstruction = false, onToggleSystemInstruction }, ref) => {
+  ({ mode = "skill", showSystemInstruction = false, onToggleSystemInstruction, showSkills = false, onToggleSkills }, ref) => {
     const config = MODE_CONFIG[mode];
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -518,8 +521,18 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
   const [selectedModel, setSelectedModel] = useState<string>(config.defaultModel);
   const [activeSkillPrompt, setActiveSkillPrompt] = useState<string | null>(null);
   const [activeSkillName, setActiveSkillName] = useState<string | null>(null);
+  const [headerStatus, setHeaderStatus] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showStatus = useCallback((text: string, duration = 5000) => {
+    setHeaderStatus(text);
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    if (duration > 0) {
+      statusTimerRef.current = setTimeout(() => setHeaderStatus(null), duration);
+    }
+  }, []);
 
   const fetchSkills = useCallback(async () => {
     try {
@@ -533,15 +546,20 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
 
   const handleSkillClick = useCallback(async (skillId: string, skillName: string) => {
     if (loading) return;
+    console.log(`[${mode}] Skill selected: ${skillName}`);
 
     if (mode === "skill") {
-      // Existing behavior: auto-fill prompt for ADK routing
-      const prompt = `${skillName}Skillを使って、`;
-      setInput(prompt);
+      // Append skill prefix to existing input
+      const prefix = `${skillName}Skillを使って、`;
+      setInput((prev) => {
+        const trimmed = prev.trim();
+        return trimmed ? `${trimmed}\n${prefix}` : prefix;
+      });
       inputRef.current?.focus();
       setTimeout(() => {
         if (inputRef.current) {
-          inputRef.current.setSelectionRange(prompt.length, prompt.length);
+          const len = inputRef.current.value.length;
+          inputRef.current.setSelectionRange(len, len);
         }
       }, 0);
     } else {
@@ -580,18 +598,14 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
     // Capture skill state before clearing
     const skillPrompt = activeSkillPrompt;
     const skillName = activeSkillName;
+    console.log(`[${mode}] Sending: ${userMessage.slice(0, 60)}... skill=${skillName || "none"}`);
+    showStatus(skillName ? `${skillName} で送信中...` : "送信中...", 0);
 
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setLoading(true);
     setStreamingText("");
-    setUsedSkills([]);
     setCurrentSkill(null);
-
-    // Clear active skill after capturing
-    if (skillPrompt) {
-      setActiveSkillPrompt(null);
-      setActiveSkillName(null);
-    }
+    // Keep activeSkillPrompt/activeSkillName — user dismisses manually
 
     // Build the actual message to send
     // For plain/gemini with active skill: embed skill prompt in message (same pattern as runner.ts)
@@ -631,7 +645,8 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
               accumulated += event.text;
               setStreamingText(accumulated);
             } else if (event.type === "skill_used") {
-              // Skill usage detected
+              console.log(`[${mode}] Skill fired: ${event.skillName}`);
+              showStatus(`${event.skillName} 実行中...`, 0);
               setCurrentSkill(event.skillName);
               setUsedSkills((prev) => {
                 if (!prev.includes(event.skillName)) {
@@ -640,6 +655,8 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
                 return prev;
               });
             } else if (event.type === "error") {
+              console.log(`[${mode}] Error: ${event.message}`);
+              showStatus(`Error: ${event.message}`, 8000);
               accumulated += `\n\nError: ${event.message}`;
               setStreamingText(accumulated);
             }
@@ -648,6 +665,12 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
           }
         }
       }
+
+      console.log(`[${mode}] Response done, ${accumulated.length} chars`);
+      const charCount = accumulated.length >= 1000
+        ? `${(accumulated.length / 1000).toFixed(1)}k`
+        : `${accumulated.length}`;
+      showStatus(`完了 ${charCount}文字`, 5000);
 
       // Track skill usage for plain/gemini modes
       if (skillName) {
@@ -674,11 +697,15 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
       setLoading(false);
       inputRef.current?.focus();
     }
-  }, [loading, config.endpoint, selectedModel, mode, activeSkillPrompt, activeSkillName]);
+  }, [loading, config.endpoint, selectedModel, mode, activeSkillPrompt, activeSkillName, showStatus]);
 
-  // Expose sendMessage via ref
+  // Expose sendMessage and setInput via ref
   useImperativeHandle(ref, () => ({
     sendMessage,
+    setInput: (text: string) => {
+      setInput(text);
+      inputRef.current?.focus();
+    },
   }), [sendMessage]);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -721,12 +748,14 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
           minHeight: 52,
         }}
       >
-        <h1
-          title={config.subtitle}
-          style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}
-        >
-          {config.title}
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+          <h1
+            title={config.subtitle}
+            style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", margin: 0, whiteSpace: "nowrap" }}
+          >
+            {config.title}
+          </h1>
+        </div>
 
         <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
           <select
@@ -768,6 +797,20 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
           </button>
         </div>
       </header>
+
+      {/* Status bar */}
+      {headerStatus && (
+        <div style={{
+          padding: "4px 20px",
+          background: "#fffbe6",
+          borderBottom: "1px solid #f0e68c",
+          fontSize: 13,
+          fontWeight: 500,
+          color: "#8b6914",
+        }}>
+          {headerStatus}
+        </div>
+      )}
 
       {/* System Instruction (collapsible) */}
       {showSystemInstruction && (
@@ -878,41 +921,6 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
               </p>
             </div>
 
-            {skills.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", maxWidth: 560 }}>
-                {skills.map((skill) => (
-                  <span
-                    key={skill.id}
-                    title={`${skill.description}\n\nクリックで選択`}
-                    onClick={() => handleSkillClick(skill.id, skill.name)}
-                    style={{
-                      display: "inline-block",
-                      padding: "4px 10px",
-                      fontSize: 12,
-                      fontWeight: 500,
-                      color: "var(--text-secondary)",
-                      background: "var(--bg-secondary)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 4,
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "var(--accent-light)";
-                      e.currentTarget.style.borderColor = "var(--accent)";
-                      e.currentTarget.style.color = "var(--accent)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "var(--bg-secondary)";
-                      e.currentTarget.style.borderColor = "var(--border)";
-                      e.currentTarget.style.color = "var(--text-secondary)";
-                    }}
-                  >
-                    {skill.name}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
         )}
 
@@ -991,6 +999,75 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
         <div ref={messagesEndRef} />
       </div>
 
+      {/* Skill selector section (collapsible, above input) */}
+      {skills.length > 0 && (
+        <div style={{ borderTop: "1px solid var(--border)", background: "var(--bg-secondary)" }}>
+          {/* Toggle header */}
+          <button
+            type="button"
+            onClick={onToggleSkills}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              width: "100%",
+              padding: "6px 14px",
+              background: "none",
+              border: "none",
+              borderBottom: showSkills ? "1px solid var(--border)" : "none",
+              cursor: "pointer",
+              fontSize: 11,
+              fontWeight: 600,
+              color: "var(--text-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
+          >
+            <svg
+              width="10" height="10" viewBox="0 0 24 24" fill="currentColor"
+              style={{ transition: "transform 0.15s", transform: showSkills ? "rotate(90deg)" : "rotate(0deg)" }}
+            >
+              <path d="M8 5l8 7-8 7V5z" />
+            </svg>
+            Skills ({skills.length})
+            {activeSkillName && (
+              <span style={{
+                marginLeft: 4,
+                padding: "1px 6px",
+                fontSize: 10,
+                fontWeight: 500,
+                color: "white",
+                background: "var(--accent)",
+                borderRadius: 3,
+                textTransform: "none",
+                letterSpacing: 0,
+              }}>
+                {activeSkillName}
+              </span>
+            )}
+          </button>
+          {/* Skill badges (wrap, not scroll) */}
+          {showSkills && (
+            <div style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 4,
+              padding: "8px 14px",
+            }}>
+              {skills.map((s) => (
+                <SkillBadge
+                  key={s.id}
+                  label={s.name}
+                  clickable={true}
+                  active={activeSkillName === s.name}
+                  onClick={() => handleSkillClick(s.id, s.name)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Input */}
       <div
         style={{
@@ -999,63 +1076,29 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
           background: "var(--bg-secondary)",
         }}
       >
-        {mode === "skill" && currentSkill && (
-          <div
-            style={{
-              marginBottom: 12,
-              padding: "12px 16px",
-              background: "var(--accent-light)",
-              border: "1px solid var(--accent)",
-              borderRadius: 4,
-              animation: "pulse 1.5s ease-in-out infinite",
-            }}
-          >
-            <span style={{ fontSize: 14, fontWeight: 600, color: "var(--accent)" }}>
-              実行中: {currentSkill}
-            </span>
-          </div>
-        )}
-        {usedSkills.length > 0 && !loading && (
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 8 }}>
-              使用したSkill:
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {usedSkills.map((skillName, idx) => (
-                <span
-                  key={idx}
-                  style={{
-                    display: "inline-block",
-                    padding: "6px 12px",
-                    fontSize: 14,
-                    fontWeight: 500,
-                    color: "var(--text-secondary)",
-                    background: "var(--bg-chat)",
-                    border: "1px solid var(--border)",
-                    borderRadius: 4,
-                  }}
-                >
-                  {skillName}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-        {messages.length > 0 && skills.length > 0 && (
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 8 }}>
-              Skill (クリックで選択):
-            </div>
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-              {skills.map((s) => (
-                <SkillBadge
-                  key={s.id}
-                  label={s.name}
-                  clickable={true}
-                  onClick={() => handleSkillClick(s.id, s.name)}
-                />
-              ))}
-            </div>
+        {/* Skill execution status (skill mode only) */}
+        {mode === "skill" && (currentSkill || usedSkills.length > 0) && (
+          <div style={{
+            marginBottom: 8,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            flexWrap: "wrap",
+          }}>
+            {currentSkill && (
+              <>
+                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>実行中:</span>
+                <SkillBadge label={currentSkill} active={true} />
+              </>
+            )}
+            {!currentSkill && usedSkills.length > 0 && (
+              <>
+                <span style={{ fontSize: 11, color: "var(--text-muted)" }}>使用:</span>
+                {usedSkills.map((name, i) => (
+                  <SkillBadge key={i} label={name} active={true} />
+                ))}
+              </>
+            )}
           </div>
         )}
         {mode !== "skill" && activeSkillName && (
@@ -1146,24 +1189,24 @@ const AgentChat = forwardRef<AgentChatHandle, AgentChatProps>(
               </div>
 
               {/* Right: send button */}
-              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                <button
-                  type="submit"
-                  className="send-btn"
-                  disabled={loading || !input.trim()}
-                  title={loading ? "送信中..." : "送信"}
-                >
-                  {loading ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
-                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                    </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={loading || !input.trim()}
+                style={{
+                  padding: "4px 12px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: (loading || !input.trim()) ? "var(--text-muted)" : "white",
+                  background: (loading || !input.trim()) ? "var(--bg-chat, #f5f5f5)" : "var(--accent)",
+                  border: "1px solid",
+                  borderColor: (loading || !input.trim()) ? "var(--border)" : "var(--accent)",
+                  borderRadius: 6,
+                  cursor: (loading || !input.trim()) ? "not-allowed" : "pointer",
+                  opacity: (loading || !input.trim()) ? 0.5 : 1,
+                }}
+              >
+                {loading ? "送信中..." : "送信"}
+              </button>
             </div>
           </div>
         </form>
